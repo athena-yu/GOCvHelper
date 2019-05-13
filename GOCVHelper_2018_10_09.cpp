@@ -910,6 +910,8 @@ Mat LocalNormalization(Mat float_gray,float sigma1,float sigma2){
 		//整形,去除长度小于gap的零的洞
 		if (vdate.size()<=gap)
 			return;
+		if(gap < 1)	//gap最小值为1；若为零会陷入死循环
+			return;
 		for (int i=0;i<vdate.size()-gap;i++){
 			if (vdate[i]>0 && vdate[i+gap]>0){
 				for (int j=i;j<i+gap;j++){
