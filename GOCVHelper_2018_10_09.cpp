@@ -425,6 +425,251 @@ Mat LocalNormalization(Mat float_gray,float sigma1,float sigma2){
 	normalize(gray, gray, 0.0, 1.0, NORM_MINMAX, -1);
 	return gray;
 }
+	/** @brief画出图片的RGB三色直方图
+返回直方图的图片
+@param srcImage RGB色彩空间的三通道Image.
+@param nscale 直方图缩放的倍数.默认为一倍
+@return value 返回直方图的图片.
+@note 务必要确保传入的图片为RGB颜色空间的
+*/
+Mat showRGBHist(Mat image, int nScale = 1)
+{
+	if (nScale <= 0)
+	{//确保缩放倍数合理
+		nScale = 1;
+	}
+	//检查输入图片是否正确
+	if (image.empty())
+	{
+		std::cerr << "Image file is empty. Please double check." << std::endl;
+
+		return Mat();	//TODO: 检查返回值应该是什么
+	}
+
+	if (image.channels() < 3)
+	{
+		std::cerr << "Here we need 3 channels image" << std::endl;
+
+		return Mat();	//TODO: 检查返回值应该是什么
+	}
+	char output_title[] = "RGB Histogram";
+	//the user cannot resize the window, the size is constrainted by the image displayed
+	namedWindow(output_title, CV_WINDOW_NORMAL);	//用户不可以调整窗口大小，由展示的图片决定
+
+	//【2】参数准备
+	int bins = 256;					//有256个bin，即binNum或者histSize
+	int hist_size[] = { bins };		//有256个bin，即binNum或者histSize
+	float range[] = { 0, 256 };
+	const float* ranges[] = { range };		//需为const类型	//即每一维数值的取值范围
+	MatND redHist, greenHist, blueHist;
+	int channels_r[] = { 2 };		//第三通道为红色
+	int channels_g[] = { 1 };		//第二通道为绿色
+	int channels_b[] = { 0 };		//第一通道为蓝色
+
+	//【3】进行直方图的计算（红色分量部分）
+	calcHist(&image,	//输入的数组
+		1,				//数组个数为一
+		channels_r,		//通道索引
+		Mat(),		//不使用Mask
+		redHist,	//输出的目标直方图
+		1,			//需要计算的直方图的维度为1
+		hist_size,	//存放每个维度的直方图尺寸的数组
+		ranges,		//每一维数值的取值范围数组
+		true,		//指示直方图是否均匀的标识符，true表示均匀的直方图
+		false);		//累计标识符，false表示直方图在配置阶段会被清零
+
+
+	//【4】进行直方图的计算（绿色分量部分）
+	calcHist(&image, 1, channels_g, Mat(),
+		greenHist, 1, hist_size, ranges,
+		true,		// the histogram is uniform
+		false);
+
+	//【5】进行直方图的计算（蓝色分量部分）
+	calcHist(&image, 1, channels_b, Mat(), blueHist, 1, hist_size, ranges, true, false);
+
+	//-----------------------------------绘制出三色直方图-----------------------------------
+	//获取最大值和最小值
+	double maxValue_red, maxValue_green, maxValue_blue;
+	minMaxLoc(redHist, NULL, &maxValue_red);
+	minMaxLoc(greenHist, NULL, &maxValue_green);
+	minMaxLoc(blueHist, NULL, &maxValue_blue);
+	int scale = nScale;
+	int histHeight = 256;
+	Mat histImage = Mat::zeros(histHeight, bins * 3 * scale, CV_8UC3);	//准备黑色画布,尺寸为H-histHeight, W-binNum*scale
+
+	//正式开始绘制
+	for (int i = 0; i < bins; i++)
+	{//参数准备
+		float binValue_red = redHist.at<float>(i);
+		float binValue_green = greenHist.at<float>(i);
+		float binValue_blue = blueHist.at<float>(i);
+		int intensity_red = cvRound(binValue_red*histHeight / maxValue_red);	//要绘制的高度
+		int intensity_green = cvRound(binValue_green*histHeight / maxValue_green);	//要绘制的高度
+		int intensity_blue = cvRound(binValue_blue*histHeight / maxValue_blue);	//要绘制的高度
+
+		//绘制红色分量的直方图
+		rectangle(histImage, Point(i*scale, histHeight - 1),
+			Point((i + 1)*scale - 1, histHeight - intensity_red),
+			Scalar(0, 0, 255), -1);
+
+		//绘制绿色分量的直方图
+		rectangle(histImage, Point((i + bins)*scale, histHeight - 1),
+			Point((i + bins + 1)*scale - 1, histHeight - intensity_green),
+			Scalar(0, 255, 0), -1);
+
+		//绘制蓝色分量的直方图
+		rectangle(histImage, Point((i + bins * 2)*scale, histHeight - 1),
+			Point((i + bins * 2 + 1)*scale - 1, histHeight - intensity_blue),
+			Scalar(255, 0, 0), -1);
+	}
+
+	//在窗口中显示出绘制好的直方图
+	imshow(output_title, histImage);	//显示效果图 
+	return histImage;
+}
+
+
+/** @brief 画出图片的HS直方图 showHueSaturationHist
+横坐标为色调Hue
+纵坐标为饱和度Saturation
+返回直方图的图片
+@param srcImage HSV色彩空间的三通道图片Image.
+@param nscale 直方图缩放的倍数.默认为十倍
+@return value 返回直方图的图片.
+@note 务必要确保传入的图片为HSV颜色空间的
+*/
+Mat showHSHist(Mat srcImage, int nScale = 10)
+{
+	if (nScale <= 0)
+	{//确保缩放倍数合理
+		nScale = 10;
+	}
+
+	//检查输入图片是否正确
+	if (srcImage.empty())
+	{
+		std::cerr << "Image file is empty. Please double check." << std::endl;
+
+		return Mat();
+	}
+
+	if (srcImage.channels() < 3)
+	{
+		std::cerr << "Here we need 3 channels image" << std::endl;
+
+		return Mat();
+	}
+	char output_title[] = "Hue-Saturation Hist";
+	//the user can resize the window (no constraint)  / also use to switch a fullscreen window to a normal size
+	//CV_WINDOW_NORMAL	用户可以调整窗口大小
+	//the user cannot resize the window, the size is constrainted by the image displayed
+	namedWindow(output_title, CV_WINDOW_AUTOSIZE);	//用户不可以调整窗口大小，由展示的图片决定
+
+	//【2】参数准备
+	//色调范围【0,180】，饱和度范围【0,255】
+	//将色调量化为30个等级，将饱和度量化为32个等级
+	int hueBinNumber = 30;				//色调直方图直条数量
+	int saturationBinNubmber = 32;		//饱和度直方图直条数量
+	int histSize[] = { hueBinNumber, saturationBinNubmber };	//横坐标为hue bin的数量，纵坐标为saturation bin的数量
+	float hueRanges[] = { 0, 180 };		//定义色调的变化范围为0到179
+	float saturationRanges[] = { 0, 256 };		//定义饱和度的变化范围为0（黑、白、灰）到255（纯光谱颜色）
+	const float * ranges[] = { hueRanges, saturationRanges };
+	MatND dstHist;
+	//参数准备，calcHist函数中将计算第0通道和第1通道的直方图
+	int channels[] = { 0, 1 };
+
+	//【3】正式调用calcHist,进行直方图计算
+	calcHist(&srcImage,		//输入的数组
+		1,				//数组个数为1
+		channels,		//通道索引
+		Mat(),			//不使用Mask
+		dstHist,		//输出的目标直方图
+		2,				//需要计算的直方图的维度为2
+		histSize,		//存放每个维度的直方图尺寸的数组
+		ranges,			//每一维数值的取值范围数组
+		true,			//指示直方图是否均匀的标识符，true表示均匀的直方图
+		false);			//累计标识符，false表示直方图在配置阶段会被清零
+
+
+	//【4】为绘制直方图准备参数
+	double maxValue = 0;
+	minMaxLoc(dstHist, 0, &maxValue);	//查找数组和子数组的全局最小值和最大值并存入maxValue中
+	int scale = nScale;		//直方图最终的缩放倍数
+	//准备黑色画布,尺寸为高度H-saturationBinNubmber*scale, 宽度W-hueBinNumber*scale
+	Mat histImage = Mat::zeros(saturationBinNubmber*scale, hueBinNumber*scale, CV_8UC3);
+
+	//【5】双层循环，进行直方图绘制
+	for (int hue = 0; hue < hueBinNumber; hue++)
+	{
+		for (int saturation = 0; saturation < saturationBinNubmber; saturation++)
+		{
+			//直方图直条的值
+			float binValue = dstHist.at<float>(hue, saturation);	//注意hist中是float类型
+			int intensity = cvRound(binValue * 255 / maxValue);	//强度,转化为颜色范围内【0，255】
+			//正式进行绘制
+			rectangle(histImage, Point(hue*scale, saturation*scale),
+				Point((hue + 1)*scale - 1, (saturation + 1)*scale - 1),
+				Scalar::all(intensity), FILLED);
+		}
+	}
+	//在窗口中显示出绘制好的直方图
+	imshow(output_title, histImage);	//显示效果图
+	return histImage;
+}
+
+/** @brief只画出某个通道的直方图
+返回直方图的图片
+@param srcImage Image.
+@param channel 想要画直方图的指定通道channel.
+@param nscale 直方图缩放的倍数.
+@return value 返回直方图的图片.
+@note 如果想要画灰度图的直方图，传入灰度图参数即可
+*/
+Mat showOneChannelHist(Mat srcImage, int channel=0, int nScale = 1)
+{
+	char output_title[32] = "";
+	if (1 == srcImage.channels())
+	{//为画灰度图的直方图做准备
+		sprintf_s(output_title, "Gray Histogram");
+		channel = 0;
+	}
+	else
+		sprintf_s(output_title, "Channel#%d Histogram", channel);
+	namedWindow(output_title, CV_WINDOW_AUTOSIZE);
+
+	//定义变量，参数准备	
+	MatND dstHist;
+	int binNum = 256;					//有256个bin，即binNum或者histSize
+	int hist_size[] = { binNum };		//有256个bin，即binNum或者histSize
+	int dims = 1;
+	float hranges[] = { 0, 255 };
+	const float * ranges[] = { hranges };	//需为const类型	//即每一维数值的取值范围
+	int histHeight = 256;		//hist height maximum, 直方图的最大高度
+	int channels = channel;		//传入的通道编号
+
+	//计算图像的直方图
+	calcHist(&srcImage, dims, &channels, Mat(), dstHist, dims, hist_size, ranges);
+	int scale = nScale;		//直方图最终的缩放倍数
+	Mat dstImage(histHeight, binNum*scale, CV_8U, Scalar(0));	//准备黑色画布,尺寸为H-histHeight*W-binNum*scale
+
+	//获取最大值和最小值
+	double minValue = 0;
+	double maxValue = 0;
+	minMaxLoc(dstHist, &minValue, &maxValue, 0, 0);
+
+	//绘制出直方图
+	for (int i = 0; i < 256; i++)
+	{
+		float binValue = dstHist.at<float>(i);		//dstHist中是float类型,直方图直条的值
+		int realValue = saturate_cast<int>(binValue*histHeight / maxValue);	//强度,即要绘制的直方图高度
+		rectangle(dstImage, Point(i*scale, histHeight - 1), Point((i + 1)*scale, histHeight - realValue), Scalar(255), -1);
+	}
+
+	//显示效果图
+	imshow(output_title, dstImage);
+	return dstImage;
+}
 #pragma endregion 图像增强
 
 #pragma region 图像处理
@@ -443,6 +688,17 @@ Mat LocalNormalization(Mat float_gray,float sigma1,float sigma2){
 		}
 		return contours[imax];
 	}
+	//比较两个轮廓大小, True: c1 > c2; False: c1 < c2
+	bool comp(std::vector<Point> & c1, std::vector<Point> & c2)
+	{
+		return (contourArea(c1) > contourArea(c2));
+	}
+
+	//给所有轮廓排序, 由大到小的顺序
+	void sortContours(vector<vector<Point>> &contours)
+	{	
+		std::sort(contours.begin(), contours.end(), comp);		//给轮廓排序，由大到小
+	}
 	//寻找第nth的轮廓
 	//ith = 0代表最大，ith=1 代表第2个，以此类推
 	bool sortfunction (std::vector<Point> c1,std::vector<Point> c2) { return (contourArea(c1)>contourArea(c2)); }  
@@ -451,6 +707,10 @@ Mat LocalNormalization(Mat float_gray,float sigma1,float sigma2){
 		findContours(src,contours,CV_RETR_LIST,CV_CHAIN_APPROX_SIMPLE);
 	    std::sort(contours.begin(),contours.end(),sortfunction);
 		return contours[ith];
+	}
+	//srotedContours为由大到小排序过的轮廓数组
+	VP FindnthContour(vector<vector<Point>> &srotedContours, int ith){	
+		return srotedContours[ith];
 	}
 	//寻找并绘制出彩色联通区域
 	vector<VP> connection2(Mat src,Mat& draw){    
@@ -556,6 +816,15 @@ Mat LocalNormalization(Mat float_gray,float sigma1,float sigma2){
 		}
 		fcompare = fsum/(float)contour.size();
 		return fcompare;
+	}
+	
+	//计算圆度值，计算公式 metric=4πS/L²
+	//圆度值在 0-1 之间，越接近 1 说明圆越圆
+	double calculateMetric(vector<Point> contour){
+		double S = contourArea(contour);
+		double L = arcLength(contour, true);
+		double metric = 4 * 3.14*S / (L*L);
+		return metric;
 	}
 
 	//返回两点之间的距离
