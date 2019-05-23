@@ -670,6 +670,72 @@ Mat showOneChannelHist(Mat srcImage, int channel=0, int nScale = 1)
 	imshow(output_title, dstImage);
 	return dstImage;
 }
+
+/** @brief 提高饱和度 
+使用查表的方法
+返回提高对比度之后的三通道Mat
+@param temp 为三通道的Mat
+@return value 提高对比度之后的三通道Mat
+@note 一定要为三通道图片
+*/
+Mat EnhanceSaturation(Mat temp)
+{
+	Mat matDst;
+	Mat Img_out(temp.size(), CV_32FC3);
+	temp.convertTo(Img_out, CV_32FC3);
+	Mat Img_in(temp.size(), CV_32FC3);
+	temp.convertTo(Img_in, CV_32FC3);
+	// define the iterator of the input image  
+	MatIterator_<Vec3f> inp_begin, inp_end;
+	inp_begin = Img_in.begin<Vec3f>();
+	inp_end = Img_in.end<Vec3f>();
+	// define the iterator of the output image  
+	MatIterator_<Vec3f> out_begin, out_end;
+	out_begin = Img_out.begin<Vec3f>();
+	out_end = Img_out.end<Vec3f>();
+	// increment (-100.0, 100.0)  
+	float Increment = 50.0 / 100.0;   //饱和度参数调整
+	float delta = 0;
+	float minVal, maxVal;
+	float t1, t2, t3;
+	float L, S;
+	float alpha;
+
+	for (; inp_begin != inp_end; inp_begin++, out_begin++)
+	{
+		t1 = (*inp_begin)[0];
+		t2 = (*inp_begin)[1];
+		t3 = (*inp_begin)[2];
+
+		minVal = std::min(std::min(t1, t2), t3);
+		maxVal = std::max(std::max(t1, t2), t3);
+		delta = (maxVal - minVal) / 255.0;
+		L = 0.5*(maxVal + minVal) / 255.0;
+		S = std::max(0.5*delta / L, 0.5*delta / (1 - L));
+
+		if (Increment > 0)
+		{
+			alpha = max(S, 1 - Increment);
+			alpha = 1.0 / alpha - 1;
+			(*out_begin)[0] = (*inp_begin)[0] + ((*inp_begin)[0] - L*255.0)*alpha;
+			(*out_begin)[1] = (*inp_begin)[1] + ((*inp_begin)[1] - L*255.0)*alpha;
+			(*out_begin)[2] = (*inp_begin)[2] + ((*inp_begin)[2] - L*255.0)*alpha;
+		}
+		else
+		{
+			alpha = Increment;
+			(*out_begin)[0] = L*255.0 + ((*inp_begin)[0] - L*255.0)*(1 + alpha);
+			(*out_begin)[1] = L*255.0 + ((*inp_begin)[1] - L*255.0)*(1 + alpha);
+			(*out_begin)[2] = L*255.0 + ((*inp_begin)[2] - L*255.0)*(1 + alpha);
+
+		}
+	}
+	Img_out /= 255;
+	Img_out.convertTo(matDst, CV_8UC3, 255);
+
+	return matDst;
+}
+
 #pragma endregion 图像增强
 
 #pragma region 图像处理
